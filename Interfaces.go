@@ -1,9 +1,9 @@
 package psvg
 
 import (
-	"github.com/go-gl/mathgl/mgl32"
-	"github.com/iamGreedy/canvas/psvg/seg"
 	"fmt"
+	"github.com/go-gl/mathgl/mgl32"
+	"github.com/iamGreedy/psvg/seg"
 )
 
 // refer by
@@ -11,18 +11,19 @@ import (
 type (
 	Elem interface {
 		Type() seg.Type
+		fmt.Stringer
 	}
 	// Kind Of Error
 	UnknownError struct {
 		From string
-		Err error
+		Err  error
 	}
 	UnknownCommand struct {
 		Command string
 	}
 
 	// https://www.w3.org/TR/SVG/paths.html#Interfaceseg.TypeClosePath
-	ClosePath struct {}
+	ClosePath struct{}
 
 	// https://www.w3.org/TR/SVG/paths.html#Interfaceseg.TypeMovetoAbs
 	MoveToAbs struct {
@@ -97,12 +98,12 @@ type (
 
 	// https://www.w3.org/TR/SVG/paths.html#Interfaceseg.TypeCurvetoCubicSmoothAbs
 	CurveToCubicSmoothAbs struct {
-		P0 mgl32.Vec2
+		P1 mgl32.Vec2
 		To mgl32.Vec2
 	}
 	// https://www.w3.org/TR/SVG/paths.html#Interfaceseg.TypeCurvetoCubicSmoothRel
 	CurveToCubicSmoothRel struct {
-		P0 mgl32.Vec2
+		P1 mgl32.Vec2
 		To mgl32.Vec2
 	}
 
@@ -120,13 +121,13 @@ func (s UnknownError) Type() seg.Type {
 	return seg.UNKNOWN
 }
 func (s UnknownError) Error() string {
-	if len(s.From) > 0{
+	if len(s.From) > 0 {
 		return fmt.Sprintf("Unknown(%s, From : %s)", s.Err.Error(), s.From)
 	}
 	return fmt.Sprintf("Unknown(%s)", s.Err.Error())
 }
 func (s UnknownError) String() string {
-	if len(s.From) > 0{
+	if len(s.From) > 0 {
 		return fmt.Sprintf("UnknownError(%s, From : %s)", s.Err.Error(), s.From)
 	}
 	return fmt.Sprintf("UnknownError(%s)", s.Err.Error())
@@ -251,14 +252,14 @@ func (s CurveToCubicSmoothAbs) Type() seg.Type {
 	return seg.CURVETO_CUBIC_SMOOTH_ABS
 }
 func (s CurveToCubicSmoothAbs) String() string {
-	return fmt.Sprintf("CurveToCubicSmoothAbs((%f, %f), (%f, %f))", s.P0[0], s.P0[1], s.To[0], s.To[1])
+	return fmt.Sprintf("CurveToCubicSmoothAbs((%f, %f), (%f, %f))", s.P1[0], s.P1[1], s.To[0], s.To[1])
 }
 
 func (s CurveToCubicSmoothRel) Type() seg.Type {
 	return seg.CURVETO_CUBIC_SMOOTH_REL
 }
 func (s CurveToCubicSmoothRel) String() string {
-	return fmt.Sprintf("CurveToCubicSmoothRel((%f, %f), (%f, %f))", s.P0[0], s.P0[1], s.To[0], s.To[1])
+	return fmt.Sprintf("CurveToCubicSmoothRel((%f, %f), (%f, %f))", s.P1[0], s.P1[1], s.To[0], s.To[1])
 }
 
 func (s CurveToQuadraticSmoothAbs) Type() seg.Type {

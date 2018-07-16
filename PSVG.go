@@ -15,26 +15,19 @@ type Parser struct {
 	// Store for command
 	temporal *list.List
 	// buffer
-	buf []byte
-	// previous remain bytes
 	cmd byte
+	buf []byte
 	prv []byte
-	// buffer size
-	bsz int
-	// buffer offset
-	off int
 }
 
 func NewParser(src io.Reader) *Parser {
 	return &Parser{
 		src:      src,
+		cmd:      0,
 		temporal: list.New(),
-		buf:      make([]byte, bufferSize),
-		prv:      nil,
-		bsz:      0,
-		off:      0,
 	}
 }
+
 // Elem can be error interface,
 // Unknown* is Elem, also error
 //
@@ -42,72 +35,53 @@ func NewParser(src io.Reader) *Parser {
 // It return nil
 // Return nil mean, 'src' faces io.EOF
 func (s *Parser) Next() Elem {
-	// If remain previous parsed Elem
+	// if there is remain Elem
 	if s.temporal.Len() > 0 {
-		// return that
-		temp := s.temporal.Front()
-		s.temporal.Remove(temp)
-		return temp.Value.(Elem)
-	}
-	// Else there is no Elems remain
-	var err error
-	// If there is no Remain buffer
-	if s.bsz <= s.off {
-		// Read buffer from src
-		s.bsz, err = s.src.Read(s.buf)
-		if err == io.EOF {
-			if len(s.prv) > 0{
-				elem := convert(s.prv[0], s.prv[1:])
-				if len(elem) > 1 {
-					// If there is remain, Push it all to temporal
-					for _, e := range elem[1:] {
-						s.temporal.PushBack(e)
-					}
-				}
-				s.cmd = 0
-				s.prv = nil
-				// return first elem
-				return elem[0]
-			}
-			// Read all Elem
+		res := s.temporal.Front().Value
+		if res == nil {
 			return nil
 		}
+		s.temporal.Remove(s.temporal.Front())
+		return res.(Elem)
+	}
+	// read data from src
+	if len(s.buf) == 0 {
+		s.buf = make([]byte, bufferSize)
+		n, err := s.src.Read(s.buf)
 		if err != nil {
-			return UnknownError{Err: err}
-		}
-		s.off = 0
-	}
-	var to = s.off
-	if s.cmd == 0{
-		s.cmd = s.buf[to]
-		to += 1
-	}
-	for ; to < s.bsz; to++ {
-		if matchingSymbol(s.buf[to]) {
-			// parsing bytes
-			temp := append(s.prv, s.buf[s.off:to]...)
-			s.prv = nil
-			elem := convert(temp[0], temp[1:])
-			if len(elem) > 1 {
-				// If there is remain, Push it all to temporal
-				for _, e := range elem[1:] {
+			if err == io.EOF {
+				for _, e := range convert(s.cmd, s.prv) {
 					s.temporal.PushBack(e)
 				}
+				s.temporal.PushBack(nil)
+				return s.Next()
 			}
-			// setup offset for next
-			s.cmd = 0
-			s.off = to
-			// return first elem
-			return elem[0]
+			return UnknownError{Err: err, From: string(s.buf[:n])}
+		}
+		s.buf = s.buf[:n]
+	}
+	//
+	for i, v := range s.buf {
+		if matchingSymbol(v) {
+			if s.cmd == 0 {
+				s.cmd = v
+				s.buf = s.buf[i+1:]
+				return s.Next()
+			}
+			data := append(s.prv, s.buf[:i]...)
+			s.prv = nil
+			for _, e := range convert(s.cmd, data) {
+				s.temporal.PushBack(e)
+			}
+			s.cmd = v
+			s.buf = s.buf[i+1:]
+			return s.Next()
 		}
 	}
-	// Out of remaining buffer data
-	if to >= s.bsz {
-		s.prv = append(s.prv, s.buf[s.off:s.bsz]...)
-		s.off = s.bsz
-		return s.Next()
-	}
-	return UnknownError{Err: errors.New("Unexpected Parsing Fail")}
+	s.prv = append(s.prv, s.buf...)
+	s.buf = nil
+	return s.Next()
+
 }
 
 // Allways return at least 1 args
@@ -251,7 +225,7 @@ func convert(command byte, data []byte) (res []Elem) {
 		res = make([]Elem, len(vecs)/2)
 		for i := 0; i < len(vecs); i += 2 {
 			res[i/2] = CurveToCubicSmoothAbs{
-				P0: vecs[i+0],
+				P1: vecs[i+0],
 				To: vecs[i+1],
 			}
 		}
@@ -266,7 +240,7 @@ func convert(command byte, data []byte) (res []Elem) {
 		res = make([]Elem, len(vecs)/2)
 		for i := 0; i < len(vecs); i += 2 {
 			res[i/2] = CurveToCubicSmoothRel{
-				P0: vecs[i+0],
+				P1: vecs[i+0],
 				To: vecs[i+1],
 			}
 		}
@@ -355,7 +329,7 @@ func convert(command byte, data []byte) (res []Elem) {
 			}
 		}
 	default:
-		res = append(res, UnknownCommand{Command:string(command) + string(data)})
+		res = append(res, UnknownCommand{Command: string(command) + string(data)})
 	}
 	return
 }

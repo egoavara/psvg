@@ -5,7 +5,6 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/pkg/errors"
 	"strconv"
-	"unicode"
 )
 
 type ArcArguments struct {
@@ -15,10 +14,22 @@ type ArcArguments struct {
 	LargeArc bool
 	Sweep    bool
 }
-
 func vectors(bts []byte) (res []mgl32.Vec2, err error) {
+	f32s, err := floats(bts)
+	if err != nil {
+		return nil, err
+	}
+	if len(f32s) % 2 != 0{
+		return nil, errors.New("Not enough float to make vector")
+	}
+	res = make([]mgl32.Vec2, len(f32s)/2)
+	for i := range res {
+		res[i] = mgl32.Vec2{f32s[2 * i], f32s[2 * i + 1]}
+	}
+	return res, nil
+}
+func floats(bts []byte) (res []float32, err error) {
 	bts = bytes.TrimSpace(bts)
-	var x *float32
 	var from = 0
 	for to, b := range bts {
 		var temp float64
@@ -26,48 +37,27 @@ func vectors(bts []byte) (res []mgl32.Vec2, err error) {
 		case ' ':
 			fallthrough
 		case ',':
-			temp, err = strconv.ParseFloat(string(bts[from:to]), 32)
-			if err != nil {
-				return nil, err
+			if from == to{
+				continue
 			}
-			if x == nil {
-				temp32 := float32(temp)
-				x = &temp32
-			} else {
-				res = append(res, mgl32.Vec2{*x, float32(temp)})
-				x = nil
-			}
-			from = to + 1
-		}
-	}
-	temp, err := strconv.ParseFloat(string(bts[from:]), 32)
-	if err != nil {
-		return nil, err
-	}
-	if x == nil {
-		temp32 := float32(temp)
-		x = &temp32
-	} else {
-		res = append(res, mgl32.Vec2{*x, float32(temp)})
-		x = nil
-	}
-	if x != nil {
-		return nil, errors.New("There is remain float")
-	}
-	return
-}
-func floats(bts []byte) (res []float32, err error) {
-	bts = bytes.TrimSpace(bts)
-	var from = 0
-	for to, b := range bts {
-		var temp float64
-		if unicode.IsSpace(rune(b)) || b == ',' {
 			temp, err = strconv.ParseFloat(string(bts[from:to]), 32)
 			if err != nil {
 				return nil, err
 			}
 			res = append(res, float32(temp))
 			from = to + 1
+		case '+':
+			fallthrough
+		case '-':
+			if from == to{
+				continue
+			}
+			temp, err = strconv.ParseFloat(string(bts[from:to]), 32)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, float32(temp))
+			from = to
 		}
 	}
 	temp, err := strconv.ParseFloat(string(bts[from:]), 32)
